@@ -1,0 +1,30 @@
+.DELETE_ON_ERROR:
+
+# name of the target group: 'a' or 'b'
+DGROUP := $(shell cat DGROUP)
+ifndef DGROUP
+$(error DGROUP is not set)
+endif
+
+# hash of the current commit
+HEAD := $(shell git rev-parse --short HEAD)
+
+.PHONY: api-deploy
+api-deploy: API$(DGROUP).deployed.$(HEAD)
+
+API%.deployed.$(HEAD): /tmp/API.build.$(HEAD) API$(DGROUP).up
+	git diff --exit-code --quiet HEAD
+	ansible-playbook api.yml --limit=api-$*-1.us-central1-b.mkocikowski-1048 --tags=deploy
+	@touch $@
+
+# build if commit hash changed, or if any go files changed
+/tmp/API.build.$(HEAD): $(shell find $(PAT_HOME)/api -name '*.go')
+	git diff --exit-code --quiet HEAD
+	BUILD_HASH="github.com/mkocikowski/pat/api/lib.BuildHash=`git rev-parse --short HEAD`" \
+	BUILD_DATE="github.com/mkocikowski/pat/api/lib.BuildDate=`date -u '+%Y-%m-%dT%H:%M:%SZ'`" \
+	BUILD_VERSION="github.com/mkocikowski/pat/api/lib.Version=`cat $$PAT_HOME/VERSION`" ; \
+	GOARCH=amd64 GOOS=linux go build \
+		-o /tmp/API.build.$(HEAD) \
+		-ldflags "-X $$BUILD_HASH -X $$BUILD_DATE -X $$BUILD_VERSION" \
+		$$GOPATH/src/github.com/mkocikowski/pat/api/cmd/patapi.go
+

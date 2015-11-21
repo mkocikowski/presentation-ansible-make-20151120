@@ -1,0 +1,10 @@
+API%.smoke: HOST=$(shell gcloud compute forwarding-rules describe api-http-$* --format='value(IPAddress)')
+API%.smoke: API$(DGROUP).deployed.$(HEAD) 
+	HOST='$(HOST)' python $(HOME)/ops/smoke.py
+
+.PHONY: api-switch
+api-switch: api$(DGROUP).smoke
+	gcloud compute forwarding-rules set-target api-http-production --target-pool api-pool-$(DGROUP)
+	echo $(DGROUP) > DGROUP.production
+	echo $(DGROUP_PRODUCTION) > DGROUP
+

@@ -1,0 +1,26 @@
+---
+
+- name: add user 'api' with group 'api'
+  user: name=api shell=/bin/bash
+
+- name: create patapi log dir
+  file: path=/var/log/patapi state=directory mode=0755 recurse=yes owner=api group=api
+
+- name: template patapi.service
+  template: src=patapi.service dest=/etc/systemd/system/patapi.service
+
+- name: copy api binary
+  copy: src=/tmp/API.build.{{ lookup("pipe","git rev-parse --short HEAD") }} dest=/usr/local/bin/patapi mode=0744
+  tags: ['deploy']
+
+- name: bring up / restart patapi
+  service: name=patapi enabled=yes state=restarted
+  tags: ['deploy']
+
+- name: wait for patapi to come up
+  wait_for: port=8080 timeout=3
+  tags: ['deploy']
+
+- name: copy schema.json
+  copy: src={{ lookup('env','PAT_HOME') }}/schema.json dest=~api/
+  tags: ['deploy', 'schema']

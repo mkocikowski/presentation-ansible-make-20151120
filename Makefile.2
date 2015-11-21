@@ -1,0 +1,27 @@
+# creates file APIa.up or APIb.up when group has been stood up
+API$(DGROUP).up: API$(DGROUP).configure
+	@touch $@
+
+# run only on change to commit or to any files in /ops/roles
+API$(DGROUP).configure: API$(DGROUP).create /tmp/API.build.$(HEAD) $(shell find $(PAT_HOME)/ops/roles)
+	ansible-playbook api.yml --limit=api-$(DGROUP)-1.us-central1-b.mkocikowski-1048
+	@touch $@
+
+API$(DGROUP).create: API$(DGROUP).create.instance
+	@gcloud compute config-ssh > /dev/null
+	ssh -o ConnectTimeout=60 api-$(DGROUP)-1.us-central1-b.mkocikowski-1048 true # test connection
+	@touch $@
+
+API$(DGROUP).create.instance: API$(DGROUP).create.disk
+	- gcloud compute instances create api-$(DGROUP)-1 \
+		--machine-type n1-standard-4 \
+		--image api-base-image \
+		--disk name=data-api-$(DGROUP)-1,device-name=data,mode=rw \
+		--tags api ;
+	test 'RUNNING' == `gcloud compute instances describe api-$(DGROUP)-1 --format='value(status)'`
+	@touch $@
+
+API$(DGROUP).create.disk:
+	- gcloud compute disks create data-api-$(DGROUP)-1 --type pd-ssd --size 50GB --source-snapshot data-api 
+	test 'READY' == `gcloud compute disks describe data-api-$(DGROUP)-1 --format='value(status)'`
+	@touch $@
